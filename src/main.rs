@@ -43,12 +43,25 @@ fn handle_write(mut stream: TcpStream) {
     let _method = part.next().unwrap();
     let path = part.next().unwrap();
 
-    let response = if path == "/" {
-        "HTTP/1.1 200 OK\r\n\r\n"
-    } else {
-        "HTTP/1.1 404 Not found\r\n\r\n"
-    };
+    // Extract the path using strip_prefix(). 
+    let echo_string = path.strip_prefix("/echo/");
 
+    // println!("Echo_string {:?}", echo_string);
+    //
+    if let Some(body) = echo_string {
+        println!("Content length {}", body.len());
+        println!("Content {}", body);
+    }
+
+    let response = if let Some(body) = echo_string {
+                format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", 
+                        body.len(),
+                        body
+                )
+    } else {
+        String::from("HTTP/1.1 404 Not found\r\n\r\n")
+    };
 
     stream.write_all(response.as_bytes()).unwrap();
 }
