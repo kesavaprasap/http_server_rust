@@ -6,8 +6,6 @@ fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     println!("Logs from your program will appear here!");
 
-    // TODO: Uncomment the code below to pass the first stage
-    //
      let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
     
      for stream in listener.incoming() {
@@ -26,7 +24,6 @@ fn main() {
 
 
 fn handle_write(mut stream: TcpStream) {
-    // let out = "HTTP/1.1 200 OK\r\n\r\n";
     // Storing the incoming stream in a buffer
     let mut buf = [0u8;1024];
 
@@ -43,23 +40,37 @@ fn handle_write(mut stream: TcpStream) {
     let _method = part.next().unwrap();
     let path = part.next().unwrap();
 
-    // Extract the path using strip_prefix(). 
+    let mut user_agent = "";
+
+    // Extract the echo path using strip_prefix(). 
     let echo_string = path.strip_prefix("/echo/");
 
-    // println!("Echo_string {:?}", echo_string);
-    //
-    if let Some(body) = echo_string {
-        println!("Content length {}", body.len());
-        println!("Content {}", body);
-    }
+    for line in request.lines() {
+        match line.split_once(":") {
+            Some((key,value)) => {
+                if key.trim().eq_ignore_ascii_case("user-agent") {
+                    user_agent = value.trim();
+                }
+            }
+            None => {}
+        }
+    } 
 
-    let response = if let Some(body) = echo_string {
+    let response = if path == "/" {
+        String::from("HTTP/1.1 200OK\r\n")
+    } else if let Some(body) = echo_string {
                 format!(
                         "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", 
                         body.len(),
                         body
                 )
-    } else {
+    } else if path == "/user-agent" {
+                format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", 
+                        user_agent.len(),
+                        user_agent
+                )
+        } else {
         String::from("HTTP/1.1 404 Not found\r\n\r\n")
     };
 
