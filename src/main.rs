@@ -16,7 +16,7 @@ fn main() {
     let directory = match args.get(2) {
         Some(dir) => dir.clone(),
         None => { println!("Missing argument");
-                return;
+        return;
         }
     };
     // Give each thread shared ownership of the directory
@@ -43,7 +43,7 @@ fn main() {
 }
 
 
-fn handle_write(mut stream: TcpStream,dir: &Path) {
+fn handle_write(mut stream: TcpStream, dir: &Path) {
     // Storing the incoming stream in a buffer
     let mut buf = [0u8;1024];
 
@@ -61,6 +61,7 @@ fn handle_write(mut stream: TcpStream,dir: &Path) {
     let path = part.next().unwrap();
 
     let mut user_agent = "";
+    let mut data: usize = 0;
 
     // Extract the echo path using strip_prefix(). 
     let echo_string = path.strip_prefix("/echo/");
@@ -82,18 +83,25 @@ fn handle_write(mut stream: TcpStream,dir: &Path) {
     if let Some(filename) = file_path {
         let full_path = dir.join(filename);
         
+        // Read the contents of a file into a bte vector
         let contents = std::fs::read(&full_path);
-
         match contents {
-            Ok(data) => {
-                println!("File successfully read");
-                println!("File length {}",data.len());
-            }
-            Err(e) => {
-                println!{"Could not read the file {}", e};
+        Ok(body) => {
+                let header = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n",
+                    body.len()
+                );
+        stream.write_all(header.as_bytes()).unwrap();
+        stream.write_all(&body).unwrap();
+        }
+        Err(e) => {
+                println!("Could not read the file: {}", e);
+                stream.write_all(b"HTTP/1.1 404 Not found\r\n\r\n").unwrap();
             }
         }
+    return;
     }
+
     let response = if path == "/" {
         String::from("HTTP/1.1 200 OK\r\n\r\n")
     } else if let Some(body) = echo_string {
@@ -108,7 +116,12 @@ fn handle_write(mut stream: TcpStream,dir: &Path) {
                         user_agent.len(),
                         user_agent
                 )
-        } else {
+    } else if let Some(_body) = file_path  {
+                format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n", 
+                        data
+                )
+    } else {
         String::from("HTTP/1.1 404 Not found\r\n\r\n")
     };
 
