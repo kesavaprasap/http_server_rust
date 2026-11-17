@@ -61,7 +61,6 @@ fn handle_write(mut stream: TcpStream, dir: &Path) {
     let path = part.next().unwrap();
 
     let mut user_agent = "";
-    let mut data: usize = 0;
 
     // Extract the echo path using strip_prefix(). 
     let echo_string = path.strip_prefix("/echo/");
@@ -80,50 +79,47 @@ fn handle_write(mut stream: TcpStream, dir: &Path) {
             None => {}
         }
     } 
-    if let Some(filename) = file_path {
+
+    let response = if path == "/" {
+        b"HTTP/1.1 200 OK\r\n\r\n".to_vec()
+    } else if let Some(body) = echo_string {
+        // header
+        format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", 
+                body.len(),
+                body
+        ).into_bytes()
+    } else if path == "/user-agent" {
+        // header
+        format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", 
+                user_agent.len(),
+                user_agent
+        ).into_bytes()
+    } else if let Some(filename) = file_path {
+
         let full_path = dir.join(filename);
-        
-        // Read the contents of a file into a bte vector
+
         let contents = std::fs::read(&full_path);
+
         match contents {
-        Ok(body) => {
-                let header = format!(
+            Ok(body) => {
+                let mut response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n",
                     body.len()
-                );
-        stream.write_all(header.as_bytes()).unwrap();
-        stream.write_all(&body).unwrap();
+                ).into_bytes();
+            // Append the body text to the header
+            response.extend_from_slice(&body);
+            response
         }
         Err(e) => {
                 println!("Could not read the file: {}", e);
-                stream.write_all(b"HTTP/1.1 404 Not found\r\n\r\n").unwrap();
+                b"HTTP/1.1 404 Not found\r\n\r\n".to_vec()
             }
         }
-    return;
-    }
-
-    let response = if path == "/" {
-        String::from("HTTP/1.1 200 OK\r\n\r\n")
-    } else if let Some(body) = echo_string {
-                format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", 
-                        body.len(),
-                        body
-                )
-    } else if path == "/user-agent" {
-                format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", 
-                        user_agent.len(),
-                        user_agent
-                )
-    } else if let Some(_body) = file_path  {
-                format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n", 
-                        data
-                )
     } else {
-        String::from("HTTP/1.1 404 Not found\r\n\r\n")
+        b"HTTP/1.1 404 Not found\r\n\r\n".to_vec()
     };
 
-    stream.write_all(response.as_bytes()).unwrap();
+    stream.write_all(&response).unwrap();
 }
